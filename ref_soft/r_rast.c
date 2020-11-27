@@ -555,7 +555,7 @@ void R_RenderFace (msurface_t *fa, int clipflags)
 		return;
 	}
 
-// ditto if not enough edges left, or switch to auxedges if possible
+// ditto if not enough edges left
 	if ((edge_p + fa->numedges + 4) >= edge_max)
 	{
 		r_outofedges += fa->numedges;

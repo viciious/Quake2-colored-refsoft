@@ -25,13 +25,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "r_dither.h"
 
 //qb:  static vars for several functions
-static int          count, spancount;
-static byte         *pbase, *pdest;
-static fixed16_t    s, t, snext, tnext, sstep, tstep;
-static float        sdivz, tdivz, zi, z, du, dv, spancountminus1;
-static float        sdivzstepu, tdivzstepu, zistepu;
-static int		    izi, izistep; // mankrip
-static short		*pz; // mankrip
+//static int          count, spancount;
+//static byte         *pbase, *pdest;
+//static fixed16_t    s, t, snext, tnext, sstep, tstep;
+//static float        sdivz, tdivz, zi, z, du, dv, spancountminus1;
+//static float        sdivzstepu, tdivzstepu, zistepu;
+//static int		    izi, izistep; // mankrip
+//static short		*pz; // mankrip
 
 static byte	*r_turb_pbase, *r_turb_pdest;
 static fixed16_t		r_turb_s, r_turb_t, r_turb_sstep, r_turb_tstep;
@@ -149,6 +149,10 @@ Turbulent8
 */
 void Turbulent8(espan_t *pspan)
 {
+	int          count;
+	float sdivzstepu, tdivzstepu, zistepu;
+	fixed16_t    snext, tnext;
+	float sdivz, tdivz, zi, z, du, dv, spancountminus1;
 
 	r_turb_turb = sintable + ((int)(r_newrefdef.time*SPEED)&(CYCLE - 1));
 
@@ -280,6 +284,10 @@ but the turbulence is automatically 0.
 */
 void NonTurbulent8(espan_t *pspan)
 {
+	int          count;
+	float sdivzstepu, tdivzstepu, zistepu;
+	fixed16_t    snext, tnext;
+	int sdivz, tdivz, zi, z, du, dv, spancountminus1;
 
 	//	r_turb_turb = sintable + ((int)(r_newrefdef.time*SPEED)&(CYCLE-1));
 	r_turb_turb = blanktable;
@@ -426,18 +434,34 @@ FIXME: actually make this subdivide by 16 instead of 8!!!  qb:  OK!!!!
 //qbism: pointer to pbase and macroize idea from mankrip
 #define WRITEPDEST(i)   { pdest[i] = *(pbase + (s >> 16) + (t >> 16) * cachewidth); s+=sstep; t+=tstep;}
 
-void D_DrawSpans16(espan_t *pspan) //qb: up it from 8 to 16.  This + unroll = big speed gain!
+void D_DrawSpans16(const spanrast_t *sr) //qb: up it from 8 to 16.  This + unroll = big speed gain!
 {
+	espan_t* pspan;
+	int cachewidth;
+	int          count, spancount;
+	float sdivzstepu, tdivzstepu, zistepu;
+	fixed16_t    s, t, snext, tnext, sstep, tstep;
+	fixed16_t    sadjust, tadjust, bbextents, bbextentt;
+	byte* pbase, * pdest;
+	float sdivz, tdivz, zi, z, du, dv, spancountminus1;
+
 	sstep = 0;   // keep compiler happy
 	tstep = 0;   // ditto
 
-	pbase = (byte *)cacheblock;
-	sdivzstepu = d_sdivzstepu * 16;
-	tdivzstepu = d_tdivzstepu * 16;
-	zistepu = d_zistepu * 16;
+	pspan = sr->span;
+	pbase = (byte *)sr->cacheblock;
+	sdivzstepu = sr->d_sdivzstepu * 16;
+	tdivzstepu = sr->d_tdivzstepu * 16;
+	zistepu = sr->d_zistepu * 16;
+	sadjust = sr->sadjust;
+	tadjust = sr->tadjust;
+	bbextents = sr->bbextents;
+	bbextentt = sr->bbextentt;
+	cachewidth = sr->cachewidth;
 
-	do
-	{
+
+	//do
+	//{
 		pdest = (byte *)((byte *)d_viewbuffer + (r_screenwidth * pspan->v) + pspan->u);
 		count = pspan->count >> 4;
 
@@ -447,9 +471,9 @@ void D_DrawSpans16(espan_t *pspan) //qb: up it from 8 to 16.  This + unroll = bi
 		du = (float)pspan->u;
 		dv = (float)pspan->v;
 
-		sdivz = d_sdivzorigin + dv*d_sdivzstepv + du*d_sdivzstepu;
-		tdivz = d_tdivzorigin + dv*d_tdivzstepv + du*d_tdivzstepu;
-		zi = d_ziorigin + dv*d_zistepv + du*d_zistepu;
+		sdivz = sr->d_sdivzorigin + dv* sr->d_sdivzstepv + du* sr->d_sdivzstepu;
+		tdivz = sr->d_tdivzorigin + dv* sr->d_tdivzstepv + du* sr->d_tdivzstepu;
+		zi = sr->d_ziorigin + dv* sr->d_zistepv + du* sr->d_zistepu;
 		z = (float)0x10000 / zi;   // prescale to 16.16 fixed-point
 
 		s = (int)(sdivz * z) + sadjust;
@@ -500,9 +524,9 @@ void D_DrawSpans16(espan_t *pspan) //qb: up it from 8 to 16.  This + unroll = bi
 		if (spancount > 0)
 		{
 			spancountminus1 = (float)(spancount - 1);
-			sdivz += d_sdivzstepu * spancountminus1;
-			tdivz += d_tdivzstepu * spancountminus1;
-			zi += d_zistepu * spancountminus1;
+			sdivz += sr->d_sdivzstepu * spancountminus1;
+			tdivz += sr->d_tdivzstepu * spancountminus1;
+			zi += sr->d_zistepu * spancountminus1;
 			z = (float)0x10000 / zi;   // prescale to 16.16 fixed-point
 
 			snext = (int)(sdivz * z) + sadjust;
@@ -558,7 +582,7 @@ void D_DrawSpans16(espan_t *pspan) //qb: up it from 8 to 16.  This + unroll = bi
 				break;
 			}
 		}
-	} while ((pspan = pspan->pnext) != NULL);
+	//} while ((pspan = pspan->pnext) != NULL);
 }
 
 #endif
@@ -571,17 +595,20 @@ void D_DrawSpans16(espan_t *pspan) //qb: up it from 8 to 16.  This + unroll = bi
 D_DrawZSpans
 =============
 */
-void D_DrawZSpans(espan_t *pspan)
+void D_DrawZSpans(const spanrast_t* sr)
 {
+	espan_t* pspan;
 	short			*pdest;
 	unsigned		ltemp;
+	int          count, spancount;
+	float zi, du, dv;
+	int		    izi, izistep; // mankrip
 
-	// FIXME: check for clamping/range problems
-	// we count on FP exceptions being turned off to avoid range problems
-	izistep = (int)(d_zistepu * 0x8000 * 0x10000);
+	pspan = sr->span;
+	izistep = sr->izistepu;
 
-	do
-	{
+	//do
+	//{
 		pdest = d_pzbuffer + (d_zwidth * pspan->v) + pspan->u;
 
 		count = pspan->count;
@@ -590,7 +617,7 @@ void D_DrawZSpans(espan_t *pspan)
 		du = (float)pspan->u;
 		dv = (float)pspan->v;
 
-		zi = d_ziorigin + dv*d_zistepv + du*d_zistepu;
+		zi = sr->d_ziorigin + dv* sr->d_zistepv + du* sr->d_zistepu;
 		// we count on FP exceptions being turned off to avoid range problems
 		izi = (int)(zi * 0x8000 * 0x10000);
 
@@ -617,7 +644,7 @@ void D_DrawZSpans(espan_t *pspan)
 		if (count & 1)
 			*pdest = (short)(izi >> 16);
 
-	} while ((pspan = pspan->pnext) != NULL);
+	//} while ((pspan = pspan->pnext) != NULL);
 }
 
 #endif

@@ -162,8 +162,8 @@ extern oldrefdef_t      r_refdef;
 #define MAXWORKINGVERTS (MAXVERTS+4)    // max points in an intermediate
 										//  polygon (while processing)
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
-#define MAXHEIGHT       1200
-#define MAXWIDTH        1600
+#define MAXHEIGHT       4320
+#define MAXWIDTH        7680
 
 #define INFINITE_DISTANCE       0x10000         // distance that's always guaranteed to
 										//  be farther away than anything in
@@ -196,11 +196,9 @@ extern oldrefdef_t      r_refdef;
 #define DS_SPAN_LIST_END        -128
 
 //qb: increased to solve dropped faces in maps with large open spaces like SMD
-#define NUMSTACKEDGES           8192	//qb: 8192 per qsb - was 2400	
-#define MINEDGES                        NUMSTACKEDGES
-#define NUMSTACKSURFACES        8192  //qb: 8192 per qsb - was 1000
-#define MINSURFACES                     NUMSTACKSURFACES
-#define MAXSPANS                8192 //qb: was 3000.
+#define MINEDGES                4096
+#define MINSURFACES             4096
+#define MAXSPANS                MAXWIDTH*4 //qb: was 3000.
 
 // flags in finalvert_t.flags
 #define ALIAS_LEFT_CLIP                         0x0001
@@ -402,6 +400,29 @@ typedef struct espan_s
 	struct espan_s  *pnext;
 } espan_t;
 
+typedef struct {
+	fixed16_t	sadjust, tadjust, bbextents, bbextentt;
+
+	float	d_sdivzstepu, d_tdivzstepu, d_zistepu;
+	float	d_sdivzstepv, d_tdivzstepv, d_zistepv;
+	float	d_sdivzorigin, d_tdivzorigin, d_ziorigin;
+
+	int     izistepu;
+
+	int				cachewidth;
+
+	short* d_pzbuffer;
+
+	pixel_t* cacheblock;
+
+	pixel_t* d_viewbuffer;
+
+	espan_t* span;
+} spanrast_t;
+
+extern spanrast_t spanrasters[MAXSPANS];
+extern int numspanrasters;
+
 // used by the polygon drawer (R_POLY.C) and sprite setup code (R_SPRITE.C)
 typedef struct
 {
@@ -517,8 +538,8 @@ extern  fixed16_t       sadjust, tadjust;
 extern  fixed16_t       bbextents, bbextentt;
 
 
-void D_DrawSpans16 (espan_t *pspans);
-void D_DrawZSpans (espan_t *pspans);
+void D_DrawSpans16 (const spanrast_t *sr);
+void D_DrawZSpans(const spanrast_t* sr);
 void Turbulent8 (espan_t *pspan);
 void NonTurbulent8 (espan_t *pspan);	//PGM
 
@@ -780,7 +801,6 @@ extern float	dp_time1, dp_time2, db_time1, db_time2, rw_time1, rw_time2;
 extern float	se_time1, se_time2, de_time1, de_time2, dv_time1, dv_time2;
 extern int              r_frustum_indexes[4*6];
 extern int              r_maxsurfsseen, r_maxedgesseen, r_cnumsurfs;
-extern qboolean r_surfsonstack;
 
 extern	mleaf_t		*r_viewleaf;
 extern	int			r_viewcluster, r_oldviewcluster;

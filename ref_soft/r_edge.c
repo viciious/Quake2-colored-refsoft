@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // r_edge.c
 
+#include <windows.h>
+#include <process.h>
 #include "r_local.h"
 
 #ifndef id386
@@ -44,7 +46,6 @@ low depth complexity -- 1 to 3 or so
 have a sentinal at both ends?
 #endif
 
-
 edge_t	*auxedges;
 edge_t	*r_edges, *edge_p, *edge_max;
 
@@ -58,6 +59,9 @@ edge_t	*newedges[MAXHEIGHT];
 edge_t	*removeedges[MAXHEIGHT];
 
 espan_t	*span_p, *max_span_p;
+
+spanrast_t spanrasters[MAXSPANS];
+int numspanrasters;
 
 int		r_currentkey;
 
@@ -83,7 +87,7 @@ int			ubasestep, errorterm, erroradjustup, erroradjustdown;
 extern void			R_RotateBmodel (void);
 extern void			R_TransformFrustum (void);
 
-
+int d_izistepu;
 
 void R_GenerateSpans (void);
 void R_GenerateSpansBackward (void);
@@ -632,10 +636,11 @@ Output:
 Each surface has a linked list of its visible spans
 ==============
 */
+byte	basespans[MAXSPANS * sizeof(espan_t) + CACHE_SIZE];
+
 void R_ScanEdges (void)
 {
 	int		iv, bottom;
-	byte	basespans[MAXSPANS*sizeof(espan_t)+CACHE_SIZE];
 	espan_t	*basespan_p;
 	surf_t	*s;
 
@@ -644,6 +649,7 @@ void R_ScanEdges (void)
 	max_span_p = &basespan_p[MAXSPANS - r_refdef.vrect.width];
 
 	span_p = basespan_p;
+	numspanrasters = 0;
 
 // clear active edges to just the background edges around the whole screen
 // FIXME: most of this only needs to be set up once
@@ -714,7 +720,6 @@ void R_ScanEdges (void)
 	}
 
 // do the last scan (no need to step or sort or remove on the last scan)
-
 	current_iv = iv;
 	fv = (float)iv;
 
@@ -866,9 +871,10 @@ void D_BackgroundSurf (surf_t *s)
 	d_zistepu = 0;
 	d_zistepv = 0;
 	d_ziorigin = -0.9;
+	d_izistepu = 0;
 
 	D_FlatFillSurface (s, (int)sw_clearcolor->value & 0xFF);
-	D_DrawZSpans (s->spans);
+	//D_DrawZSpans (s->spans);
 }
 
 /*
@@ -881,6 +887,7 @@ void D_TurbulentSurf (surf_t *s)
 	d_zistepu = s->d_zistepu;
 	d_zistepv = s->d_zistepv;
 	d_ziorigin = s->d_ziorigin;
+	d_izistepu = (int)(d_zistepu * 0x8000 * 0x10000);
 
 	pface = s->msurf;
 	miplevel = 0;
@@ -913,7 +920,7 @@ void D_TurbulentSurf (surf_t *s)
 //PGM
 //============
 
-	D_DrawZSpans (s->spans);
+	//D_DrawZSpans (s->spans);
 
 	if (s->insubmodel)
 	{
@@ -949,18 +956,20 @@ void D_SkySurf (surf_t *s)
 	d_zistepu = s->d_zistepu;
 	d_zistepv = s->d_zistepv;
 	d_ziorigin = s->d_ziorigin;
+	d_izistepu = (int)(d_zistepu * 0x8000 * 0x10000);
 
 	D_CalcGradients (pface);
 
-	D_DrawSpans16 (s->spans);
+	//D_DrawSpans16 (s->spans);
 
 // set up a gradient for the background surface that places it
 // effectively at infinity distance from the viewpoint
 	d_zistepu = 0;
 	d_zistepv = 0;
 	d_ziorigin = -0.9;
+	d_izistepu = 0;
 
-	D_DrawZSpans (s->spans);
+	//D_DrawZSpans (s->spans);
 }
 
 /*
@@ -970,22 +979,26 @@ D_SolidSurf
 Normal surface cached, texture mapped surface
 ==============
 */
-void D_SolidSurf (surf_t *s)
+void D_SolidSurf(surf_t* s)
 {
 	d_zistepu = s->d_zistepu;
 	d_zistepv = s->d_zistepv;
 	d_ziorigin = s->d_ziorigin;
 
+	// FIXME: check for clamping/range problems
+	// we count on FP exceptions being turned off to avoid range problems
+	d_izistepu = (int)(d_zistepu * 0x8000 * 0x10000);
+
 	if (s->insubmodel)
 	{
-	// FIXME: we don't want to do all this for every polygon!
-	// TODO: store once at start of frame
+		// FIXME: we don't want to do all this for every polygon!
+		// TODO: store once at start of frame
 		currententity = s->entity;	//FIXME: make this passed in to
 									// R_RotateBmodel ()
-		VectorSubtract (r_origin, currententity->origin, local_modelorg);
-		TransformVector (local_modelorg, transformed_modelorg);
+		VectorSubtract(r_origin, currententity->origin, local_modelorg);
+		TransformVector(local_modelorg, transformed_modelorg);
 
-		R_RotateBmodel ();	// FIXME: don't mess with the frustum,
+		R_RotateBmodel();	// FIXME: don't mess with the frustum,
 							// make entity passed in
 	}
 	else
@@ -999,39 +1012,76 @@ void D_SolidSurf (surf_t *s)
 		float dot;
 		float normal[3];
 
-		if ( s->insubmodel )
+		if (s->insubmodel)
 		{
-			VectorCopy( pface->plane->normal, normal );
-//			TransformVector( pface->plane->normal, normal);
-			dot = DotProduct( normal, vpn );
+			VectorCopy(pface->plane->normal, normal);
+			//			TransformVector( pface->plane->normal, normal);
+			dot = DotProduct(normal, vpn);
 		}
 		else
 		{
-			VectorCopy( pface->plane->normal, normal );
-			dot = DotProduct( normal, vpn );
+			VectorCopy(pface->plane->normal, normal);
+			dot = DotProduct(normal, vpn);
 		}
 
-		if ( pface->flags & SURF_PLANEBACK )
+		if (pface->flags & SURF_PLANEBACK)
 			dot = -dot;
 
-		if ( dot > 0 )
-			printf( "blah" );
+		if (dot > 0)
+			printf("blah");
 
 		miplevel = D_MipLevelForScale(s->nearzi * scale_for_mip * pface->texinfo->mipadjust);
 	}
 #endif
 
-// FIXME: make this passed in to D_CacheSurface
-	pcurrentcache = D_CacheSurface (pface, miplevel);
+	// FIXME: make this passed in to D_CacheSurface
+	pcurrentcache = D_CacheSurface(pface, miplevel);
 
-	cacheblock = (pixel_t *)pcurrentcache->data;
+	cacheblock = (pixel_t*)pcurrentcache->data;
 	cachewidth = pcurrentcache->width;
 
-	D_CalcGradients (pface);
+	D_CalcGradients(pface);
 
-	D_DrawSpans16 (s->spans);
+	//D_DrawSpans16 (s->spans);
 
-	D_DrawZSpans (s->spans);
+	//D_DrawZSpans (s->spans);
+
+	if( r_coloredlights->value != 5 )
+	{
+		espan_t* pspan = s->spans;
+
+		do {
+			spanrast_t* sr = &spanrasters[numspanrasters];
+			if (numspanrasters >= MAXSPANS) {
+				assert(numspanrasters < MAXSPANS);
+				return;
+			}
+
+			sr->d_sdivzstepu = d_sdivzstepu;
+			sr->d_tdivzstepu = d_tdivzstepu;
+			sr->d_zistepu = d_zistepu;
+			sr->izistepu = d_izistepu;
+			sr->d_sdivzstepv = d_sdivzstepv;
+			sr->d_tdivzstepv = d_tdivzstepv;
+			sr->d_zistepv = d_zistepv;
+			sr->d_sdivzorigin = d_sdivzorigin;
+			sr->d_tdivzorigin = d_tdivzorigin;
+			sr->d_ziorigin = d_ziorigin;
+			sr->sadjust = sadjust;
+			sr->tadjust = tadjust;
+			sr->bbextents = bbextents;
+			sr->bbextentt = bbextentt;
+			sr->cachewidth = cachewidth;
+			sr->d_pzbuffer = d_pzbuffer;
+			sr->cacheblock = cacheblock;
+			sr->cachewidth = cachewidth;
+			sr->d_viewbuffer = d_viewbuffer;
+			sr->span = pspan;
+
+			numspanrasters++;
+		} while ((pspan = pspan->pnext) != NULL);
+	}
+
 
 	if (s->insubmodel)
 	{
@@ -1073,7 +1123,82 @@ void D_DrawflatSurfaces (void)
 		// make a stable color for each surface by taking the low
 		// bits of the msurface pointer
 		D_FlatFillSurface (s, (int)s->msurf & 0xFF);
-		D_DrawZSpans (s->spans);
+		//D_DrawZSpans (s->spans);
+	}
+}
+
+#define mt 3 // should be numcpus - 1
+
+void* h[mt];
+volatile LONG hj[mt];
+volatile LONG hcnt;
+
+typedef struct {
+	int id;
+	int first;
+	int nextfirst;
+} spanthreadarg_t;
+
+spanthreadarg_t* param;
+
+void routine(void* pp)
+{
+	int i;
+	//int id = *((int *)pp);
+	//int num = (numspanrasters + mt - 1) / mt;
+	//int cur = num * id;
+	//int next = num * (id+1);
+	//if (next > numspanrasters) next = numspanrasters;
+	spanthreadarg_t* arg = pp;
+	int id = arg->id;
+	int first = arg->first;
+	int nextfirst = arg->nextfirst;
+
+	for (i = first; i < nextfirst; i++) {
+		D_DrawSpans16(&spanrasters[i]);
+		D_DrawZSpans(&spanrasters[i]);
+	}
+}
+
+void threadroutine(void *pp)
+{
+	//int id = *((int *)pp);
+	//int num = (numspanrasters + mt - 1) / mt;
+	//int cur = num * id;
+	//int next = num * (id+1);
+	//if (next > numspanrasters) next = numspanrasters;
+	spanthreadarg_t* arg = pp;
+	int id = arg->id;
+
+	while (1) {
+		if (InterlockedExchangeAdd(&hj[id], 0) == 0) {
+			continue;
+		}
+		
+		if (r_coloredlights->value != 4) {
+			routine(pp);
+		}
+		
+		InterlockedExchangeAdd(&hj[id], -1);
+		InterlockedExchangeAdd(&hcnt, -1);
+	}
+}
+
+void routine1(void* pp)
+{
+	int i;
+
+	for (i = 0; i < numspanrasters; i += 1) {
+		D_DrawSpans16(&spanrasters[i]);
+	}
+}
+
+void routine2(void* pp)
+{
+	int i;
+
+	for (i = 0; i < numspanrasters; i += 1) {
+		D_DrawZSpans(&spanrasters[i]);
 	}
 }
 
@@ -1115,6 +1240,105 @@ void D_DrawSurfaces (void)
 	}
 	else
 		D_DrawflatSurfaces ();
+	
+	if( r_coloredlights->value == 2 )
+	{
+		int i;
+
+		for (i = 0; i < numspanrasters; i++) {
+			D_DrawSpans16(&spanrasters[i]);
+			D_DrawZSpans(&spanrasters[i]);
+		}
+
+		numspanrasters = 0;
+	}
+	else if (r_coloredlights->value == 3 || r_coloredlights->value == 4){
+		int i;
+		int tcount = 0, first;
+		int dt;
+
+		tcount = 0;
+		for (i = 0; i < numspanrasters; i++) {
+			tcount += spanrasters[i].span->count;
+		}
+		tcount /= mt;
+		/*
+		{
+			int id;
+			int tcount = 0;
+
+			for (id = 0; id < mt; id++) {
+				int i;
+				int num = (numspanrasters + mt - 1) / mt;
+				int cur = num * id;
+				int next = num * (id + 1);
+				if (next > numspanrasters) next = numspanrasters;
+				int count = 0;
+
+				for (i = cur; i < next; i++) {
+					count += spanrasters[i].span->count;
+				}
+
+				Com_Printf("%i: %i\n", id, count);
+				tcount += count;
+			}
+			Com_Printf("t: %i\n", tcount);
+		}
+		*/
+
+		if (h[0] == 0) {
+
+			param = malloc(sizeof(spanthreadarg_t) * mt);
+		}
+			first = 0;
+			for (i = 0; i < mt; i++) {
+				int n;
+				int ncount = 0;
+
+				for (n = first; n < numspanrasters; n++) {
+					ncount += spanrasters[n].span->count;
+					if (ncount >= tcount)
+						break;
+				}
+
+				//Com_Printf("%i: %i %i\n", i, ncount, tcount);
+
+				param[i].id = i;
+				param[i].first = first;
+				param[i].nextfirst = n;
+				first = n;
+			}
+			param[i - 1].nextfirst = numspanrasters;
+
+		if (h[0] == 0) {
+			dt = Sys_Milliseconds();
+			for (i = 0; i < mt - 1; i++) {
+				int threadID;
+				h[i] = _beginthreadex(NULL, 0, (unsigned(WINAPI*) (void*))threadroutine, &param[i], 0, &threadID);
+			}
+			dt = Sys_Milliseconds() - dt;
+		}
+
+		for (i = 0; i < mt - 1; i++) {
+			InterlockedExchangeAdd(&hcnt, 1);
+			InterlockedExchangeAdd(&hj[i], 1);
+		}
+
+		routine(&param[mt - 1]);
+
+		for (i = 0; i < mt - 1; i++) {
+			//WaitForSingleObject(h[i], INFINITE);
+			//CloseHandle(h[i]);
+		}
+
+		dt = Sys_Milliseconds();
+		while (InterlockedExchangeAdd(&hcnt, 0) != 0) {}
+		dt = Sys_Milliseconds() - dt;
+
+		//free(param);
+
+		numspanrasters = 0;
+	}
 
 	currententity = NULL;	//&r_worldentity;
 	VectorSubtract (r_origin, vec3_origin, modelorg);

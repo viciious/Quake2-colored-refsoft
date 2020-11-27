@@ -63,7 +63,6 @@ mvertex_t	*r_pcurrentvertbase;
 
 int			c_surf;
 int			r_maxsurfsseen, r_maxedgesseen, r_cnumsurfs;
-qboolean	r_surfsonstack;
 int			r_clipflags;
 
 //
@@ -264,7 +263,7 @@ void R_Register(void)
 	sw_clearcolor = ri.Cvar_Get("sw_clearcolor", "2", 0);
 	sw_drawflat = ri.Cvar_Get("sw_drawflat", "0", 0);
 	sw_draworder = ri.Cvar_Get("sw_draworder", "0", 0);
-	sw_maxedges = ri.Cvar_Get("sw_maxedges", STRINGER(MAXSTACKSURFACES), 0);
+	sw_maxedges = ri.Cvar_Get("sw_maxedges", STRINGER(MINEDGES), 0);
 	sw_maxsurfs = ri.Cvar_Get("sw_maxsurfs", "0", 0);
 	sw_mipcap = ri.Cvar_Get("sw_mipcap", "0", 0);
 	sw_mipscale = ri.Cvar_Get("sw_mipscale", "1", 0);
@@ -421,21 +420,13 @@ void R_NewMap(void)
 	if (r_cnumsurfs <= MINSURFACES)
 		r_cnumsurfs = MINSURFACES;
 
-	if (r_cnumsurfs > NUMSTACKSURFACES)
-	{
-		surfaces = malloc(r_cnumsurfs * sizeof(surf_t));
-		surface_p = surfaces;
-		surf_max = &surfaces[r_cnumsurfs];
-		r_surfsonstack = false;
-		// surface 0 doesn't really exist; it's just a dummy because index 0
-		// is used to indicate no edge attached to surface
-		surfaces--;
-		R_SurfacePatch();
-	}
-	else
-	{
-		r_surfsonstack = true;
-	}
+	surfaces = realloc(surfaces ? surfaces + 1 : NULL, r_cnumsurfs * sizeof(surf_t));
+	surface_p = surfaces;
+	surf_max = &surfaces[r_cnumsurfs];
+	// surface 0 doesn't really exist; it's just a dummy because index 0
+	// is used to indicate no edge attached to surface
+	surfaces--;
+	R_SurfacePatch();
 
 	r_maxedgesseen = 0;
 	r_maxsurfsseen = 0;
@@ -445,14 +436,7 @@ void R_NewMap(void)
 	if (r_numallocatededges < MINEDGES)
 		r_numallocatededges = MINEDGES;
 
-	if (r_numallocatededges <= NUMSTACKEDGES)
-	{
-		auxedges = NULL;
-	}
-	else
-	{
-		auxedges = malloc(r_numallocatededges * sizeof(edge_t));
-	}
+	auxedges = realloc(auxedges, r_numallocatededges * sizeof(edge_t));
 }
 
 
@@ -887,34 +871,10 @@ R_EdgeDrawing
 */
 void R_EdgeDrawing(void)
 {
-	edge_t	ledges[NUMSTACKEDGES +
-		((CACHE_SIZE - 1) / sizeof(edge_t)) + 1];
-	surf_t	lsurfs[NUMSTACKSURFACES +
-		((CACHE_SIZE - 1) / sizeof(surf_t)) + 1];
-
 	if (r_newrefdef.rdflags & RDF_NOWORLDMODEL)
 		return;
 
-	if (auxedges)
-	{
-		r_edges = auxedges;
-	}
-	else
-	{
-		r_edges = (edge_t *)
-			(((long)&ledges[0] + CACHE_SIZE - 1) & ~(CACHE_SIZE - 1));
-	}
-
-	if (r_surfsonstack)
-	{
-		surfaces = (surf_t *)
-			(((long)&lsurfs[0] + CACHE_SIZE - 1) & ~(CACHE_SIZE - 1));
-		surf_max = &surfaces[r_cnumsurfs];
-		// surface 0 doesn't really exist; it's just a dummy because index 0
-		// is used to indicate no edge attached to surface
-		surfaces--;
-		R_SurfacePatch();
-	}
+	r_edges = auxedges;
 
 	R_BeginEdgeFrame();
 
