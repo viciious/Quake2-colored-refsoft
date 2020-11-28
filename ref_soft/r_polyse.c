@@ -134,9 +134,7 @@ void R_PolysetDrawSpans8_66(spanpackage_t *pspanpackage);
 //void R_PolysetDrawSpans8_Opaque(spanpackage_t *pspanpackage);
 void R_PolysetDrawSpans8_Opaque_Coloured(spanpackage_t *pspanpackage);
 
-void R_PolysetDrawThreshSpans8(spanpackage_t *pspanpackage);
 void R_PolysetCalcGradients(int skinwidth);
-void R_DrawNonSubdiv(void);
 void R_PolysetSetEdgeTable(void);
 void R_RasterizeAliasPolySmooth(void);
 void R_PolysetScanLeftEdge(int height);
@@ -929,76 +927,6 @@ static int trans[3];			// leilei - colored lighting
 
 /*
 ================
-R_PolysetDrawThreshSpans8
-
-Random fizzle fade rasterizer
-================
-*/
-void R_PolysetDrawThreshSpans8(spanpackage_t *pspanpackage)
-{
-
-	do
-	{
-		lcount = d_aspancount - pspanpackage->count;
-
-		errorterm += erroradjustup;
-		if (errorterm >= 0)
-		{
-			d_aspancount += d_countextrastep;
-			errorterm -= erroradjustdown;
-		}
-		else
-		{
-			d_aspancount += ubasestep;
-		}
-
-		if (lcount)
-		{
-			lpdest = pspanpackage->pdest;
-			lptex = pspanpackage->ptex;
-			lpz = pspanpackage->pz;
-			lsfrac = pspanpackage->sfrac;
-			ltfrac = pspanpackage->tfrac;
-			llight = pspanpackage->light;
-			lzi = pspanpackage->zi;
-
-			do
-			{
-				if ((lzi >> 16) >= *lpz)
-				{
-					rand1k_index = (rand1k_index + 1) & MASK_1K;
-
-					if (rand1k[rand1k_index] <= r_affinetridesc.vis_thresh)
-					{
-						*lpdest = ((byte *)vid.colormap)[*lptex + (llight & 0xFF00)];
-						*lpz = lzi >> 16;
-					}
-				}
-
-				lpdest++;
-				lzi += r_zistepx;
-				lpz++;
-				llight += r_lstepx;
-				lptex += a_ststepxwhole;
-				lsfrac += a_sstepxfrac;
-				lptex += lsfrac >> 16;
-				lsfrac &= 0xFFFF;
-				ltfrac += a_tstepxfrac;
-				if (ltfrac & 0x10000)
-				{
-					lptex += r_affinetridesc.skinwidth;
-					ltfrac &= 0xFFFF;
-				}
-			} while (--lcount);
-		}
-
-		pspanpackage++;
-	} while (pspanpackage->count != -999999);
-}
-
-
-/*
-================
 R_PolysetDrawSpans8
 ================
 */
@@ -1267,44 +1195,6 @@ void R_PolysetDrawSpans8_Opaque_Coloured(spanpackage_t *pspanpackage)
 	} while (pspanpackage->count != -999999);
 }
 #endif
-
-
-/*
-================
-R_PolysetFillSpans8
-================
-*/
-void R_PolysetFillSpans8(spanpackage_t *pspanpackage)
-{
-	int				color;
-
-	// FIXME: do z buffering
-
-	color = d_aflatcolor++;
-
-	while (1)
-	{
-		int		lcount;
-		byte	*lpdest;
-
-		lcount = pspanpackage->count;
-
-		if (lcount == -1)
-			return;
-
-		if (lcount)
-		{
-			lpdest = pspanpackage->pdest;
-
-			do
-			{
-				*lpdest++ = color;
-			} while (--lcount);
-		}
-
-		pspanpackage++;
-	}
-}
 
 /*
 ================

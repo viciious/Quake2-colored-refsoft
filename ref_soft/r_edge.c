@@ -23,6 +23,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <process.h>
 #include "r_local.h"
 
+static float	d_sdivzstepu, d_tdivzstepu, d_zistepu;
+static float	d_sdivzstepv, d_tdivzstepv, d_zistepv;
+static float	d_sdivzorigin, d_tdivzorigin, d_ziorigin;
+
+static fixed16_t	sadjust, tadjust, bbextents, bbextentt;
+
+static pixel_t* cacheblock;
+static int				cachewidth;
+
 #ifndef id386
 void R_SurfacePatch (void)
 {
@@ -60,7 +69,7 @@ edge_t	*removeedges[MAXHEIGHT];
 
 espan_t	*span_p, *max_span_p;
 
-spanrast_t spanrasters[MAXSPANS];
+spanrast_t spanrasters[MAXSPANRASTERS];
 int numspanrasters;
 
 int		r_currentkey;
@@ -774,31 +783,6 @@ int D_MipLevelForScale (float scale)
 	return lmiplevel;
 }
 
-
-/*
-==============
-D_FlatFillSurface
-
-Simple single color fill with no texture mapping
-==============
-*/
-void D_FlatFillSurface (surf_t *surf, int color)
-{
-	espan_t	*span;
-	byte	*pdest;
-	int		u, u2;
-	
-	for (span=surf->spans ; span ; span=span->pnext)
-	{
-		pdest = (byte *)d_viewbuffer + r_screenwidth*span->v;
-		u = span->u;
-		u2 = span->u + span->count - 1;
-		for ( ; u <= u2 ; u++)
-			pdest[u] = color;
-	}
-}
-
-
 /*
 ==============
 D_CalcGradients
@@ -856,6 +840,62 @@ void D_CalcGradients (msurface_t *pface)
 	bbextentt = ((pface->extents[1] << 16) >> miplevel) - 1;
 }
 
+spanrast_t *D_NewSpanRaster(espan_t *pspan)
+{
+	spanrast_t* sr = &spanrasters[numspanrasters];
+	if (numspanrasters >= MAXSPANRASTERS) {
+		assert(numspanrasters < MAXSPANRASTERS);
+		return NULL;
+	}
+
+	sr->zwrite = false;
+	sr->vwrite = false;
+	sr->sfill = false;
+	sr->warp = false;
+	sr->turb = false;
+	sr->bpp = 0;
+	sr->color = 0;
+	sr->d_sdivzstepu = d_sdivzstepu;
+	sr->d_tdivzstepu = d_tdivzstepu;
+	sr->d_zistepu = d_zistepu;
+	sr->izistepu = d_izistepu;
+	sr->d_sdivzstepv = d_sdivzstepv;
+	sr->d_tdivzstepv = d_tdivzstepv;
+	sr->d_zistepv = d_zistepv;
+	sr->d_sdivzorigin = d_sdivzorigin;
+	sr->d_tdivzorigin = d_tdivzorigin;
+	sr->d_ziorigin = d_ziorigin;
+	sr->sadjust = sadjust;
+	sr->tadjust = tadjust;
+	sr->bbextents = bbextents;
+	sr->bbextentt = bbextentt;
+	sr->cachewidth = cachewidth;
+	sr->cacheblock = cacheblock;
+	sr->cachewidth = cachewidth;
+	sr->span = pspan;
+
+	numspanrasters++;
+	return sr;
+}
+
+void D_SurfSpanRasters(surf_t *s, qboolean zwrite, qboolean vwrite, qboolean sfill, qboolean turb, qboolean warp, int bpp, int color)
+{
+	espan_t* pspan = s->spans;
+	msurface_t * pface = s->msurf;
+
+	do {
+		spanrast_t* sr = D_NewSpanRaster(pspan);
+		if (!sr)
+			break;
+		sr->zwrite = zwrite;
+		sr->vwrite = vwrite;
+		sr->sfill = sfill;
+		sr->warp = warp;
+		sr->turb = turb;
+		sr->bpp = bpp;
+		sr->color = color;
+	} while ((pspan = pspan->pnext) != NULL);
+}
 
 /*
 ==============
@@ -873,8 +913,7 @@ void D_BackgroundSurf (surf_t *s)
 	d_ziorigin = -0.9;
 	d_izistepu = 0;
 
-	D_FlatFillSurface (s, (int)sw_clearcolor->value & 0xFF);
-	//D_DrawZSpans (s->spans);
+	D_SurfSpanRasters(s, true, true, true, false, false, 8, (int)sw_clearcolor->value & 0xFF);
 }
 
 /*
@@ -910,17 +949,7 @@ void D_TurbulentSurf (surf_t *s)
 
 	D_CalcGradients (pface);
 
-//============
-//PGM
-	// textures that aren't warping are just flowing. Use NonTurbulent8 instead
-	if(!(pface->texinfo->flags & SURF_WARP))
-		NonTurbulent8 (s->spans);
-	else
-		Turbulent8 (s->spans);
-//PGM
-//============
-
-	//D_DrawZSpans (s->spans);
+	D_SurfSpanRasters(s, true, true, false, true, (pface->texinfo->flags & SURF_WARP) != 0, 8, 0);
 
 	if (s->insubmodel)
 	{
@@ -960,7 +989,7 @@ void D_SkySurf (surf_t *s)
 
 	D_CalcGradients (pface);
 
-	//D_DrawSpans16 (s->spans);
+	D_SurfSpanRasters(s, false, true, false, false, false, 8, 0);
 
 // set up a gradient for the background surface that places it
 // effectively at infinity distance from the viewpoint
@@ -969,7 +998,7 @@ void D_SkySurf (surf_t *s)
 	d_ziorigin = -0.9;
 	d_izistepu = 0;
 
-	//D_DrawZSpans (s->spans);
+	D_SurfSpanRasters(s, true, false, false, false, false, 0, 0);
 }
 
 /*
@@ -1042,46 +1071,7 @@ void D_SolidSurf(surf_t* s)
 
 	D_CalcGradients(pface);
 
-	//D_DrawSpans16 (s->spans);
-
-	//D_DrawZSpans (s->spans);
-
-	if( r_coloredlights->value != 5 )
-	{
-		espan_t* pspan = s->spans;
-
-		do {
-			spanrast_t* sr = &spanrasters[numspanrasters];
-			if (numspanrasters >= MAXSPANS) {
-				assert(numspanrasters < MAXSPANS);
-				return;
-			}
-
-			sr->d_sdivzstepu = d_sdivzstepu;
-			sr->d_tdivzstepu = d_tdivzstepu;
-			sr->d_zistepu = d_zistepu;
-			sr->izistepu = d_izistepu;
-			sr->d_sdivzstepv = d_sdivzstepv;
-			sr->d_tdivzstepv = d_tdivzstepv;
-			sr->d_zistepv = d_zistepv;
-			sr->d_sdivzorigin = d_sdivzorigin;
-			sr->d_tdivzorigin = d_tdivzorigin;
-			sr->d_ziorigin = d_ziorigin;
-			sr->sadjust = sadjust;
-			sr->tadjust = tadjust;
-			sr->bbextents = bbextents;
-			sr->bbextentt = bbextentt;
-			sr->cachewidth = cachewidth;
-			sr->d_pzbuffer = d_pzbuffer;
-			sr->cacheblock = cacheblock;
-			sr->cachewidth = cachewidth;
-			sr->d_viewbuffer = d_viewbuffer;
-			sr->span = pspan;
-
-			numspanrasters++;
-		} while ((pspan = pspan->pnext) != NULL);
-	}
-
+	D_SurfSpanRasters(s, true, true, false, false, false, 32, 0);
 
 	if (s->insubmodel)
 	{
@@ -1122,8 +1112,7 @@ void D_DrawflatSurfaces (void)
 
 		// make a stable color for each surface by taking the low
 		// bits of the msurface pointer
-		D_FlatFillSurface (s, (int)s->msurf & 0xFF);
-		//D_DrawZSpans (s->spans);
+		D_SurfSpanRasters(s, true, true, true, 8, false, false, (int)s->msurf & 0xFF);
 	}
 }
 
@@ -1241,7 +1230,7 @@ void D_DrawSurfaces (void)
 	else
 		D_DrawflatSurfaces ();
 	
-	if( r_coloredlights->value == 2 )
+	if( r_coloredlights->value < 3 )
 	{
 		int i;
 

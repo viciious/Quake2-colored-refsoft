@@ -128,7 +128,7 @@ byte		*thepalette;
 
 void R_GetPalette(void)
 {
-	thepalette = (byte *)d_8to24table;
+	thepalette = (byte *)d_8to24bgrtable;
 }
 */
 
@@ -151,7 +151,7 @@ byte BestColor(int r, int g, int b, int start, int stop)
 	if (g > 255) g = 255;
 	if (b > 255) b = 255;
 
-	pal = (byte *)d_8to24table + start * 4;
+	pal = (byte *)d_8to24bgrtable + start * 4;
 	for (i = start; i <= stop; i++)
 	{
 		dr = r - (int)pal[0];
@@ -185,7 +185,7 @@ void Draw_InitRGBMap(void)
 	// TODO: Option to enable this 
 
 	{
-		Draw_8to24((byte *)d_8to24table);
+		Draw_8to24((byte *)d_8to24bgrtable);
 		for (r = 0; r < 256; r += 4)
 		{
 			for (g = 0; g < 256; g += 4)
@@ -241,7 +241,6 @@ smoothly scrolled off.
 */
 void Draw_Char(int x, int y, int num)
 {
-	byte			*dest;
 	byte			*source;
 	int				drawline;
 	int				row, col;
@@ -278,29 +277,58 @@ void Draw_Char(int x, int y, int num)
 	else
 		drawline = 8;
 
+	if (0) { //8bpp
+		byte* dest;
 
-	dest = vid.buffer + y*vid.rowbytes + x;
+		dest = vid.buffer + y * vid.rowbytes + x;
 
-	while (drawline--)
-	{
-		if (source[0] != TRANSPARENT_COLOR)
-			dest[0] = source[0];
-		if (source[1] != TRANSPARENT_COLOR)
-			dest[1] = source[1];
-		if (source[2] != TRANSPARENT_COLOR)
-			dest[2] = source[2];
-		if (source[3] != TRANSPARENT_COLOR)
-			dest[3] = source[3];
-		if (source[4] != TRANSPARENT_COLOR)
-			dest[4] = source[4];
-		if (source[5] != TRANSPARENT_COLOR)
-			dest[5] = source[5];
-		if (source[6] != TRANSPARENT_COLOR)
-			dest[6] = source[6];
-		if (source[7] != TRANSPARENT_COLOR)
-			dest[7] = source[7];
-		source += 128;
-		dest += vid.rowbytes;
+		while (drawline--)
+		{
+			if (source[0] != TRANSPARENT_COLOR)
+				dest[0] = source[0];
+			if (source[1] != TRANSPARENT_COLOR)
+				dest[1] = source[1];
+			if (source[2] != TRANSPARENT_COLOR)
+				dest[2] = source[2];
+			if (source[3] != TRANSPARENT_COLOR)
+				dest[3] = source[3];
+			if (source[4] != TRANSPARENT_COLOR)
+				dest[4] = source[4];
+			if (source[5] != TRANSPARENT_COLOR)
+				dest[5] = source[5];
+			if (source[6] != TRANSPARENT_COLOR)
+				dest[6] = source[6];
+			if (source[7] != TRANSPARENT_COLOR)
+				dest[7] = source[7];
+			source += 128;
+			dest += vid.rowbytes;
+		}
+	} else {
+		int * dest;
+
+		dest = (int *)vid.buffer + y * vid.rowbytes + x;
+
+		while (drawline--)
+		{
+			if (source[0] != TRANSPARENT_COLOR)
+				dest[0] = d_8to24bgrtable[source[0]];
+			if (source[1] != TRANSPARENT_COLOR)
+				dest[1] = d_8to24bgrtable[source[1]];
+			if (source[2] != TRANSPARENT_COLOR)
+				dest[2] = d_8to24bgrtable[source[2]];
+			if (source[3] != TRANSPARENT_COLOR)
+				dest[3] = d_8to24bgrtable[source[3]];
+			if (source[4] != TRANSPARENT_COLOR)
+				dest[4] = d_8to24bgrtable[source[4]];
+			if (source[5] != TRANSPARENT_COLOR)
+				dest[5] = d_8to24bgrtable[source[5]];
+			if (source[6] != TRANSPARENT_COLOR)
+				dest[6] = d_8to24bgrtable[source[6]];
+			if (source[7] != TRANSPARENT_COLOR)
+				dest[7] = d_8to24bgrtable[source[7]];
+			source += 128;
+			dest += vid.rowbytes;
+		}
 	}
 }
 
@@ -330,7 +358,7 @@ Draw_StretchPicImplementation
 */
 void Draw_StretchPicImplementation(int x, int y, int w, int h, image_t	*pic)
 {
-	byte			*dest, *source;
+	byte			*source;
 	int				v, u, sv;
 	int				height;
 	int				f, fstep;
@@ -354,28 +382,62 @@ void Draw_StretchPicImplementation(int x, int y, int w, int h, image_t	*pic)
 	else
 		skip = 0;
 
-	dest = vid.buffer + y * vid.rowbytes + x;
+	if (0) { //8bpp
+		byte *dest;
+		dest = vid.buffer + y * vid.rowbytes + x;
 
-	for (v = 0; v < height; v++, dest += vid.rowbytes)
-	{
-		sv = (skip + v)*pic->height / h;
-		source = pic->pixels[0] + sv*pic->width;
-		if (w == pic->width)
-			memcpy(dest, source, w);
-		else
+		for (v = 0; v < height; v++, dest += vid.rowbytes)
 		{
-			f = 0;
-			fstep = pic->width * 0x10000 / w;
-			for (u = 0; u < w; u += 4)
+			sv = (skip + v) * pic->height / h;
+			source = pic->pixels[0] + sv * pic->width;
+			if (w == pic->width)
+				memcpy(dest, source, w);
+			else
 			{
-				dest[u] = source[f >> 16];
-				f += fstep;
-				dest[u + 1] = source[f >> 16];
-				f += fstep;
-				dest[u + 2] = source[f >> 16];
-				f += fstep;
-				dest[u + 3] = source[f >> 16];
-				f += fstep;
+				f = 0;
+				fstep = pic->width * 0x10000 / w;
+				for (u = 0; u < w; u += 4)
+				{
+					dest[u] = source[f >> 16];
+					f += fstep;
+					dest[u + 1] = source[f >> 16];
+					f += fstep;
+					dest[u + 2] = source[f >> 16];
+					f += fstep;
+					dest[u + 3] = source[f >> 16];
+					f += fstep;
+				}
+			}
+		}
+	} else {
+		int *dest;
+
+		dest = (int *)vid.buffer + y * vid.rowbytes + x;
+
+		for (v = 0; v < height; v++, dest += vid.rowbytes)
+		{
+			sv = (skip + v) * pic->height / h;
+			source = pic->pixels[0] + sv * pic->width;
+
+			if (w == pic->width) {
+				for (u = 0; u < w; u++)
+					dest[u] = d_8to24bgrtable[source[u]];
+			}
+			else
+			{
+				f = 0;
+				fstep = pic->width * 0x10000 / w;
+				for (u = 0; u < w; u += 4)
+				{
+					dest[u] = d_8to24bgrtable[source[f >> 16]];
+					f += fstep;
+					dest[u + 1] = d_8to24bgrtable[source[f >> 16]];
+					f += fstep;
+					dest[u + 2] = d_8to24bgrtable[source[f >> 16]];
+					f += fstep;
+					dest[u + 3] = d_8to24bgrtable[source[f >> 16]];
+					f += fstep;
+				}
 			}
 		}
 	}
@@ -422,7 +484,7 @@ Draw_Pic
 void Draw_Pic(int x, int y, char *name)
 {
 	image_t			*pic;
-	byte			*dest, *source;
+	byte			*source;
 	int				v, u;
 	int				tbyte;
 	int				height;
@@ -448,56 +510,116 @@ void Draw_Pic(int x, int y, char *name)
 		y = 0;
 	}
 
-	dest = vid.buffer + y * vid.rowbytes + x;
+	if (0) { //8bpp
+		byte* dest;
+		dest = vid.buffer + y * vid.rowbytes + x;
 
-	if (!pic->transparent)
-	{
-		for (v = 0; v < height; v++)
+		if (!pic->transparent)
 		{
-			memcpy(dest, source, pic->width);
-			dest += vid.rowbytes;
-			source += pic->width;
+			for (v = 0; v < height; v++)
+			{
+				memcpy(dest, source, pic->width);
+				dest += vid.rowbytes;
+				source += pic->width;
+			}
 		}
-	}
-	else
-	{
-		if (pic->width & 7)
-		{	// general
+		else
+		{
+			if (pic->width & 7)
+			{	// general
+				for (v = 0; v < height; v++)
+				{
+					for (u = 0; u < pic->width; u++)
+						if ((tbyte = source[u]) != TRANSPARENT_COLOR)
+							dest[u] = tbyte;
+
+					dest += vid.rowbytes;
+					source += pic->width;
+				}
+			}
+			else
+			{	// unwound
+				for (v = 0; v < height; v++)
+				{
+					for (u = 0; u < pic->width; u += 8)
+					{
+						if ((tbyte = source[u]) != TRANSPARENT_COLOR)
+							dest[u] = tbyte;
+						if ((tbyte = source[u + 1]) != TRANSPARENT_COLOR)
+							dest[u + 1] = tbyte;
+						if ((tbyte = source[u + 2]) != TRANSPARENT_COLOR)
+							dest[u + 2] = tbyte;
+						if ((tbyte = source[u + 3]) != TRANSPARENT_COLOR)
+							dest[u + 3] = tbyte;
+						if ((tbyte = source[u + 4]) != TRANSPARENT_COLOR)
+							dest[u + 4] = tbyte;
+						if ((tbyte = source[u + 5]) != TRANSPARENT_COLOR)
+							dest[u + 5] = tbyte;
+						if ((tbyte = source[u + 6]) != TRANSPARENT_COLOR)
+							dest[u + 6] = tbyte;
+						if ((tbyte = source[u + 7]) != TRANSPARENT_COLOR)
+							dest[u + 7] = tbyte;
+					}
+					dest += vid.rowbytes;
+					source += pic->width;
+				}
+			}
+		}
+	} else {
+		int * dest;
+		dest = (int *)vid.buffer + y * vid.rowbytes + x;
+
+		if (!pic->transparent)
+		{
 			for (v = 0; v < height; v++)
 			{
 				for (u = 0; u < pic->width; u++)
-				if ((tbyte = source[u]) != TRANSPARENT_COLOR)
-					dest[u] = tbyte;
+					dest[u] = d_8to24bgrtable[source[u]];
 
 				dest += vid.rowbytes;
 				source += pic->width;
 			}
 		}
 		else
-		{	// unwound
-			for (v = 0; v < height; v++)
-			{
-				for (u = 0; u < pic->width; u += 8)
+		{
+			if (pic->width & 7)
+			{	// general
+				for (v = 0; v < height; v++)
 				{
-					if ((tbyte = source[u]) != TRANSPARENT_COLOR)
-						dest[u] = tbyte;
-					if ((tbyte = source[u + 1]) != TRANSPARENT_COLOR)
-						dest[u + 1] = tbyte;
-					if ((tbyte = source[u + 2]) != TRANSPARENT_COLOR)
-						dest[u + 2] = tbyte;
-					if ((tbyte = source[u + 3]) != TRANSPARENT_COLOR)
-						dest[u + 3] = tbyte;
-					if ((tbyte = source[u + 4]) != TRANSPARENT_COLOR)
-						dest[u + 4] = tbyte;
-					if ((tbyte = source[u + 5]) != TRANSPARENT_COLOR)
-						dest[u + 5] = tbyte;
-					if ((tbyte = source[u + 6]) != TRANSPARENT_COLOR)
-						dest[u + 6] = tbyte;
-					if ((tbyte = source[u + 7]) != TRANSPARENT_COLOR)
-						dest[u + 7] = tbyte;
+					for (u = 0; u < pic->width; u++)
+						if ((tbyte = source[u]) != TRANSPARENT_COLOR)
+							dest[u] = d_8to24bgrtable[tbyte];
+
+					dest += vid.rowbytes;
+					source += pic->width;
 				}
-				dest += vid.rowbytes;
-				source += pic->width;
+			}
+			else
+			{	// unwound
+				for (v = 0; v < height; v++)
+				{
+					for (u = 0; u < pic->width; u += 8)
+					{
+						if ((tbyte = source[u]) != TRANSPARENT_COLOR)
+							dest[u] = d_8to24bgrtable[tbyte];
+						if ((tbyte = source[u + 1]) != TRANSPARENT_COLOR)
+							dest[u + 1] = d_8to24bgrtable[tbyte];
+						if ((tbyte = source[u + 2]) != TRANSPARENT_COLOR)
+							dest[u + 2] = d_8to24bgrtable[tbyte];
+						if ((tbyte = source[u + 3]) != TRANSPARENT_COLOR)
+							dest[u + 3] = d_8to24bgrtable[tbyte];
+						if ((tbyte = source[u + 4]) != TRANSPARENT_COLOR)
+							dest[u + 4] = d_8to24bgrtable[tbyte];
+						if ((tbyte = source[u + 5]) != TRANSPARENT_COLOR)
+							dest[u + 5] = d_8to24bgrtable[tbyte];
+						if ((tbyte = source[u + 6]) != TRANSPARENT_COLOR)
+							dest[u + 6] = d_8to24bgrtable[tbyte];
+						if ((tbyte = source[u + 7]) != TRANSPARENT_COLOR)
+							dest[u + 7] = d_8to24bgrtable[tbyte];
+					}
+					dest += vid.rowbytes;
+					source += pic->width;
+				}
 			}
 		}
 	}
@@ -515,7 +637,6 @@ void Draw_TileClear(int x, int y, int w, int h, char *name)
 {
 	int			i, j;
 	byte		*psrc;
-	byte		*pdest;
 	image_t		*pic;
 	int			x2;
 
@@ -543,12 +664,27 @@ void Draw_TileClear(int x, int y, int w, int h, char *name)
 		return;
 	}
 	x2 = x + w;
-	pdest = vid.buffer + y*vid.rowbytes;
-	for (i = 0; i < h; i++, pdest += vid.rowbytes)
-	{
-		psrc = pic->pixels[0] + pic->width * ((i + y) & 63);
-		for (j = x; j < x2; j++)
-			pdest[j] = psrc[j & 63];
+
+	if (0) { //8bpp
+		byte* pdest;
+
+		pdest = vid.buffer + y * vid.rowbytes;
+		for (i = 0; i < h; i++, pdest += vid.rowbytes)
+		{
+			psrc = pic->pixels[0] + pic->width * ((i + y) & 63);
+			for (j = x; j < x2; j++)
+				pdest[j] = psrc[j & 63];
+		}
+	} else {
+		int * pdest;
+
+		pdest = (int *)vid.buffer + y * vid.rowbytes;
+		for (i = 0; i < h; i++, pdest += vid.rowbytes)
+		{
+			psrc = pic->pixels[0] + pic->width * ((i + y) & 63);
+			for (j = x; j < x2; j++)
+				pdest[j] = d_8to24bgrtable[psrc[j & 63]];
+		}
 	}
 }
 
@@ -562,7 +698,6 @@ Fills a box of pixels with a single color
 */
 void Draw_Fill(int x, int y, int w, int h, int c)
 {
-	byte			*dest;
 	int				u, v;
 
 	if (x + w > vid.width)
@@ -581,10 +716,20 @@ void Draw_Fill(int x, int y, int w, int h, int c)
 	}
 	if (w < 0 || h < 0)
 		return;
-	dest = vid.buffer + y*vid.rowbytes + x;
-	for (v = 0; v < h; v++, dest += vid.rowbytes)
-	for (u = 0; u < w; u++)
-		dest[u] = c;
+
+	if (0) { //8bpp
+		byte* dest;
+		dest = vid.buffer + y * vid.rowbytes + x;
+		for (v = 0; v < h; v++, dest += vid.rowbytes)
+			for (u = 0; u < w; u++)
+				dest[u] = c;
+	} else {
+		int * dest;
+		dest = (int *)vid.buffer + y * vid.rowbytes + x;
+		for (v = 0; v < h; v++, dest += vid.rowbytes)
+			for (u = 0; u < w; u++)
+				dest[u] = d_8to24bgrtable[c];
+	}
 }
 //=============================================================================
 
@@ -597,18 +742,35 @@ Draw_FadeScreen
 void Draw_FadeScreen(void)
 {
 	int			x, y;
-	byte		*pbuf;
 	int	t;
 
-	for (y = 0; y < vid.height; y++)
-	{
-		pbuf = (byte *)(vid.buffer + vid.rowbytes*y);
-		t = (y & 1) << 1;
+	if (0) { //8bpp
+		byte* pbuf;
 
-		for (x = 0; x < vid.width; x++)
+		for (y = 0; y < vid.height; y++)
 		{
-			if ((x & 3) != t)
-				pbuf[x] = 0;
+			pbuf = (byte*)(vid.buffer + vid.rowbytes * y);
+			t = (y & 1) << 1;
+
+			for (x = 0; x < vid.width; x++)
+			{
+				if ((x & 3) != t)
+					pbuf[x] = 0;
+			}
+		}
+	} else {
+		int* pbuf;
+
+		for (y = 0; y < vid.height; y++)
+		{
+			pbuf = (int *)vid.buffer + vid.rowbytes * y;
+			t = (y & 1) << 1;
+
+			for (x = 0; x < vid.width; x++)
+			{
+				if ((x & 3) != t)
+					pbuf[x] = d_8to24bgrtable[0];
+			}
 		}
 	}
 }

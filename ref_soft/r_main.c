@@ -26,6 +26,7 @@ refimport_t	ri;
 
 unsigned	d_8to24table[256];
 unsigned	d_8to24tabble[256];
+unsigned	d_8to24bgrtable[256];
 
 entity_t	r_worldentity;
 
@@ -184,14 +185,6 @@ int		coloredlights;	  // leilei
 // FIXME: make into one big structure, like cl or sv
 // FIXME: do separately for refresh engine and driver
 
-float	d_sdivzstepu, d_tdivzstepu, d_zistepu;
-float	d_sdivzstepv, d_tdivzstepv, d_zistepv;
-float	d_sdivzorigin, d_tdivzorigin, d_ziorigin;
-
-fixed16_t	sadjust, tadjust, bbextents, bbextentt;
-
-pixel_t			*cacheblock;
-int				cachewidth;
 pixel_t			*d_viewbuffer;
 short			*d_pzbuffer;
 unsigned int	d_zrowbytes;
@@ -1068,6 +1061,8 @@ void R_RenderFrame(refdef_t *fd)
 */
 void R_InitGraphics(int width, int height)
 {
+	int r_warpbuffer_size;
+
 	vid.width = width;
 	vid.height = height;
 
@@ -1099,18 +1094,23 @@ void R_InitGraphics(int width, int height)
 		r_warpheight >>= 1;
 	}
 
+	r_warpbuffer_size = r_warpwidth * r_warpheight;
+	if (0) { //8bpp
+	} else {
+		r_warpbuffer_size *= 4;
+	}
 	//ri.Con_Printf(PRINT_ALL,"Warping resolution: %d %d\n", r_warpwidth, r_warpheight);
 
 	if (r_warpbuffer)
 	{
 		//ri.Con_Printf(PRINT_ALL, "***realloc\n");
 		//r_warpbuffer = realloc(r_warpbuffer, vid.width*vid.height);
-		r_warpbuffer = realloc(r_warpbuffer, r_warpwidth * r_warpheight);
+		r_warpbuffer = realloc(r_warpbuffer, r_warpbuffer_size);
 	}
 	else
 	{
 		//ri.Con_Printf(PRINT_ALL, "***malloc\n");	
-		r_warpbuffer = malloc(r_warpwidth * r_warpheight);
+		r_warpbuffer = malloc(r_warpbuffer_size);
 	}
 	/* qb:  let it roll  }
 	else
@@ -1375,7 +1375,7 @@ Draw_GetPalette
 */
 void Draw_GetPalette(void)
 {
-	byte	*out;
+	byte	*out, *out2;
 	int		i;
 	int		r, g, b;
 
@@ -1385,7 +1385,8 @@ void Draw_GetPalette(void)
 		ri.Sys_Error(ERR_FATAL, "Couldn't load pics/colormap.pcx");
 	vid.alphamap = vid.colormap + 64 * 256;
 	out = (byte *)d_8to24table;
-	for (i=0 ; i<256 ; i++, out+=4)
+	out2 = (byte *)d_8to24bgrtable;
+	for (i=0 ; i<256 ; i++, out+=4, out2+=4)
 	{
 		r = thepalette[i*3+0];
 		g = thepalette[i*3+1];
@@ -1394,6 +1395,10 @@ void Draw_GetPalette(void)
         out[0] = r;
         out[1] = g;
         out[2] = b;
+
+		out2[0] = b;
+		out2[1] = g;
+		out2[2] = r;
 	}
 }
 

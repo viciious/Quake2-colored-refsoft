@@ -131,22 +131,23 @@ qboolean DIB_Init(unsigned char **ppbuffer, int *ppitch)
 	pbmiDIB->bmiHeader.biWidth = vid.width;
 	pbmiDIB->bmiHeader.biHeight = vid.height;
 	pbmiDIB->bmiHeader.biPlanes = 1;
-	pbmiDIB->bmiHeader.biBitCount = 8;
+	pbmiDIB->bmiHeader.biBitCount = 32;
 	pbmiDIB->bmiHeader.biCompression = BI_RGB;
 	pbmiDIB->bmiHeader.biSizeImage = 0;
-	pbmiDIB->bmiHeader.biXPelsPerMeter = 0;
-	pbmiDIB->bmiHeader.biYPelsPerMeter = 0;
-	pbmiDIB->bmiHeader.biClrUsed = 256;
-	pbmiDIB->bmiHeader.biClrImportant = 256;
 
-	/*
-	** fill in the palette
-	*/
-	for (i = 0; i < 256; i++)
-	{
-		dibheader.acolors[i].rgbRed = (d_8to24table[i] >> 0) & 0xff;
-		dibheader.acolors[i].rgbGreen = (d_8to24table[i] >> 8) & 0xff;
-		dibheader.acolors[i].rgbBlue = (d_8to24table[i] >> 16) & 0xff;
+	if(0) { // 8bpp
+		pbmiDIB->bmiHeader.biClrUsed = 256;
+		pbmiDIB->bmiHeader.biClrImportant = 256;
+
+		/*
+		** fill in the palette
+		*/
+		for (i = 0; i < 256; i++)
+		{
+			dibheader.acolors[i].rgbRed = (d_8to24table[i] >> 0) & 0xff;
+			dibheader.acolors[i].rgbGreen = (d_8to24table[i] >> 8) & 0xff;
+			dibheader.acolors[i].rgbBlue = (d_8to24table[i] >> 16) & 0xff;
+		}
 	}
 
 	/*
@@ -168,7 +169,7 @@ qboolean DIB_Init(unsigned char **ppbuffer, int *ppitch)
 	if (pbmiDIB->bmiHeader.biHeight > 0)
 	{
 		// bottom up
-		*ppbuffer = sww_state.pDIBBase + (vid.height - 1) * vid.width;
+		*ppbuffer = sww_state.pDIBBase + (vid.height - 1) * vid.width * pbmiDIB->bmiHeader.biBitCount / 8;
 		*ppitch = -vid.width;
 	}
 	else

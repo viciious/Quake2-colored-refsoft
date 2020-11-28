@@ -53,6 +53,15 @@ vec5_t	r_clip_verts[2][MAXWORKINGVERTS + 2];
 
 static int		s_minindex, s_maxindex;
 
+static float	d_sdivzstepu, d_tdivzstepu, d_zistepu;
+static float	d_sdivzstepv, d_tdivzstepv, d_zistepv;
+static float	d_sdivzorigin, d_tdivzorigin, d_ziorigin;
+
+static fixed16_t	sadjust, tadjust, bbextents, bbextentt;
+
+static pixel_t* cacheblock;
+static int				cachewidth;
+
 static void R_DrawPoly(int iswater);
 
 /*
@@ -1052,6 +1061,8 @@ void R_ClipAndDrawPoly(float alpha, int isturbulent, qboolean textured)
 	int			i, nump;
 	float		scale;
 	vec3_t		transformed, local;
+
+	r_turb_turb = sintable + ((int)(r_newrefdef.time * SPEED) & (CYCLE - 1));
 
 	if (!textured)
 	{

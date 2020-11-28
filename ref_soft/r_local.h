@@ -401,6 +401,9 @@ typedef struct espan_s
 } espan_t;
 
 typedef struct {
+	qboolean	zwrite, vwrite, sfill;
+	qboolean    warp, turb;
+
 	fixed16_t	sadjust, tadjust, bbextents, bbextentt;
 
 	float	d_sdivzstepu, d_tdivzstepu, d_zistepu;
@@ -409,18 +412,18 @@ typedef struct {
 
 	int     izistepu;
 
+	int    color;
+
+	int bpp;
 	int				cachewidth;
 
-	short* d_pzbuffer;
-
 	pixel_t* cacheblock;
-
-	pixel_t* d_viewbuffer;
 
 	espan_t* span;
 } spanrast_t;
 
-extern spanrast_t spanrasters[MAXSPANS];
+#define MAXSPANRASTERS MAXSPANS*2
+extern spanrast_t spanrasters[MAXSPANRASTERS];
 extern int numspanrasters;
 
 // used by the polygon drawer (R_POLY.C) and sprite setup code (R_SPRITE.C)
@@ -530,14 +533,6 @@ extern qboolean         d_roverwrapped;
 extern surfcache_t      *sc_rover;
 extern surfcache_t      *d_initial_rover;
 
-extern float    d_sdivzstepu, d_tdivzstepu, d_zistepu;
-extern float    d_sdivzstepv, d_tdivzstepv, d_zistepv;
-extern float    d_sdivzorigin, d_tdivzorigin, d_ziorigin;
-
-extern  fixed16_t       sadjust, tadjust;
-extern  fixed16_t       bbextents, bbextentt;
-
-
 void D_DrawSpans16 (const spanrast_t *sr);
 void D_DrawZSpans(const spanrast_t* sr);
 void Turbulent8 (espan_t *pspan);
@@ -560,8 +555,7 @@ extern float    d_scalemip[3];
 
 //===================================================================
 
-extern int              cachewidth;
-extern pixel_t  *cacheblock;
+
 extern int              r_screenwidth;
 
 extern int              r_drawnpolycount;
@@ -868,6 +862,7 @@ void	R_CinematicSetPalette( const unsigned char *palette );
 
 extern unsigned d_8to24table[256]; // base
 extern unsigned d_8to24tabble[256]; // base
+extern unsigned d_8to24bgrtable[256]; // base
 
 void    Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length);
 void    Sys_SetFPCW (void);
