@@ -467,16 +467,27 @@ static byte BlendParticle100( int pcolor, int dstcolor )
 
 static vec3_t	local, transformed;
 static float	zi;
-static byte		*pdest;
+static int		*pdest;
 static short	*pz;
 static int		i, izi, pix, count, u, v;
 static byte(*blendparticle)(int, int);
+
+// 25 to 75 really
+#define BLENDPIX33_66(v1,v2,v3) do { \
+	int pi; \
+	union { int v; unsigned char b[4]; } p[3]; \
+	p[0].v = v1, p[1].v = v2; \
+	for (pi = 0; pi < 3; pi++) { \
+		p[2].b[pi] = ((int)p[0].b[pi] + p[1].b[pi] + p[1].b[pi] + p[1].b[pi]) >> 2; \
+	} \
+	v3 = p[2].v; \
+} while(0)
 
 void R_DrawParticle( void )
 {
 	particle_t *pparticle = partparms.particle;
 	int         level = partparms.level;
-	int      color = pparticle->color;
+	int      color = sw_state.currentrgba[pparticle->color];
 
 	/*
 	** transform the particle
@@ -521,7 +532,7 @@ void R_DrawParticle( void )
 	** compute the Z-buffer reference value.
 	*/
 	pz = d_pzbuffer + (d_zwidth * v) + u;
-	pdest = d_viewbuffer + d_scantable[v] + u;
+	pdest = (int *)d_viewbuffer + d_scantable[v] + u;
 	izi = (int)(zi * 0x8000);
 
 	/*
@@ -549,7 +560,7 @@ void R_DrawParticle( void )
                 if (pz[i] <= izi)
                 {
                     pz[i]    = izi;
-                    pdest[i] = vid.alphamap[color + ((int)pdest[i]<<8)];
+					BLENDPIX33_66(color, pdest[i], pdest[i]);
                 }
             }
         }
@@ -563,7 +574,7 @@ void R_DrawParticle( void )
                 if (pz[i] <= izi)
                 {
                     pz[i]    = izi;
-                    pdest[i] = vid.alphamap[(color<<8) + (int)pdest[i]];
+					BLENDPIX33_66(pdest[i], color, pdest[i]);
                 }
             }
         }

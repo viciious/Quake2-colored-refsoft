@@ -1,13 +1,19 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30523.141
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ctf", "ctf\ctf.vcxproj", "{36279A19-F8EA-4815-93DD-70CA1A98E80E}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "game", "game\game.vcxproj", "{F68FA9D6-F518-410E-9C5C-C5871CA6621D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "quake2", "quake2.vcxproj", "{F2AB96AA-F44D-40B2-B1FB-3E46AC98848A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A131CE06-2876-461A-A40A-ECF4D7D3D1BC} = {A131CE06-2876-461A-A40A-ECF4D7D3D1BC}
+		{36279A19-F8EA-4815-93DD-70CA1A98E80E} = {36279A19-F8EA-4815-93DD-70CA1A98E80E}
+		{86386477-EE0F-4BA7-97B4-DB4CC413D003} = {86386477-EE0F-4BA7-97B4-DB4CC413D003}
+		{F68FA9D6-F518-410E-9C5C-C5871CA6621D} = {F68FA9D6-F518-410E-9C5C-C5871CA6621D}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ref_gl", "ref_gl\ref_gl.vcxproj", "{A131CE06-2876-461A-A40A-ECF4D7D3D1BC}"
 EndProject
@@ -75,5 +81,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1E297022-95A1-481C-A4D9-C74858232B8F}
 	EndGlobalSection
 EndGlobal

@@ -311,21 +311,21 @@ void Draw_Char(int x, int y, int num)
 		while (drawline--)
 		{
 			if (source[0] != TRANSPARENT_COLOR)
-				dest[0] = d_8to24bgrtable[source[0]];
+				dest[0] = sw_state.currentrgba[source[0]];
 			if (source[1] != TRANSPARENT_COLOR)
-				dest[1] = d_8to24bgrtable[source[1]];
+				dest[1] = sw_state.currentrgba[source[1]];
 			if (source[2] != TRANSPARENT_COLOR)
-				dest[2] = d_8to24bgrtable[source[2]];
+				dest[2] = sw_state.currentrgba[source[2]];
 			if (source[3] != TRANSPARENT_COLOR)
-				dest[3] = d_8to24bgrtable[source[3]];
+				dest[3] = sw_state.currentrgba[source[3]];
 			if (source[4] != TRANSPARENT_COLOR)
-				dest[4] = d_8to24bgrtable[source[4]];
+				dest[4] = sw_state.currentrgba[source[4]];
 			if (source[5] != TRANSPARENT_COLOR)
-				dest[5] = d_8to24bgrtable[source[5]];
+				dest[5] = sw_state.currentrgba[source[5]];
 			if (source[6] != TRANSPARENT_COLOR)
-				dest[6] = d_8to24bgrtable[source[6]];
+				dest[6] = sw_state.currentrgba[source[6]];
 			if (source[7] != TRANSPARENT_COLOR)
-				dest[7] = d_8to24bgrtable[source[7]];
+				dest[7] = sw_state.currentrgba[source[7]];
 			source += 128;
 			dest += vid.rowbytes;
 		}
@@ -421,7 +421,7 @@ void Draw_StretchPicImplementation(int x, int y, int w, int h, image_t	*pic)
 
 			if (w == pic->width) {
 				for (u = 0; u < w; u++)
-					dest[u] = d_8to24bgrtable[source[u]];
+					dest[u] = sw_state.currentrgba[source[u]];
 			}
 			else
 			{
@@ -429,13 +429,13 @@ void Draw_StretchPicImplementation(int x, int y, int w, int h, image_t	*pic)
 				fstep = pic->width * 0x10000 / w;
 				for (u = 0; u < w; u += 4)
 				{
-					dest[u] = d_8to24bgrtable[source[f >> 16]];
+					dest[u] = sw_state.currentrgba[source[f >> 16]];
 					f += fstep;
-					dest[u + 1] = d_8to24bgrtable[source[f >> 16]];
+					dest[u + 1] = sw_state.currentrgba[source[f >> 16]];
 					f += fstep;
-					dest[u + 2] = d_8to24bgrtable[source[f >> 16]];
+					dest[u + 2] = sw_state.currentrgba[source[f >> 16]];
 					f += fstep;
-					dest[u + 3] = d_8to24bgrtable[source[f >> 16]];
+					dest[u + 3] = sw_state.currentrgba[source[f >> 16]];
 					f += fstep;
 				}
 			}
@@ -574,7 +574,7 @@ void Draw_Pic(int x, int y, char *name)
 			for (v = 0; v < height; v++)
 			{
 				for (u = 0; u < pic->width; u++)
-					dest[u] = d_8to24bgrtable[source[u]];
+					dest[u] = sw_state.currentrgba[source[u]];
 
 				dest += vid.rowbytes;
 				source += pic->width;
@@ -588,7 +588,7 @@ void Draw_Pic(int x, int y, char *name)
 				{
 					for (u = 0; u < pic->width; u++)
 						if ((tbyte = source[u]) != TRANSPARENT_COLOR)
-							dest[u] = d_8to24bgrtable[tbyte];
+							dest[u] = sw_state.currentrgba[tbyte];
 
 					dest += vid.rowbytes;
 					source += pic->width;
@@ -601,21 +601,21 @@ void Draw_Pic(int x, int y, char *name)
 					for (u = 0; u < pic->width; u += 8)
 					{
 						if ((tbyte = source[u]) != TRANSPARENT_COLOR)
-							dest[u] = d_8to24bgrtable[tbyte];
+							dest[u] = sw_state.currentrgba[tbyte];
 						if ((tbyte = source[u + 1]) != TRANSPARENT_COLOR)
-							dest[u + 1] = d_8to24bgrtable[tbyte];
+							dest[u + 1] = sw_state.currentrgba[tbyte];
 						if ((tbyte = source[u + 2]) != TRANSPARENT_COLOR)
-							dest[u + 2] = d_8to24bgrtable[tbyte];
+							dest[u + 2] = sw_state.currentrgba[tbyte];
 						if ((tbyte = source[u + 3]) != TRANSPARENT_COLOR)
-							dest[u + 3] = d_8to24bgrtable[tbyte];
+							dest[u + 3] = sw_state.currentrgba[tbyte];
 						if ((tbyte = source[u + 4]) != TRANSPARENT_COLOR)
-							dest[u + 4] = d_8to24bgrtable[tbyte];
+							dest[u + 4] = sw_state.currentrgba[tbyte];
 						if ((tbyte = source[u + 5]) != TRANSPARENT_COLOR)
-							dest[u + 5] = d_8to24bgrtable[tbyte];
+							dest[u + 5] = sw_state.currentrgba[tbyte];
 						if ((tbyte = source[u + 6]) != TRANSPARENT_COLOR)
-							dest[u + 6] = d_8to24bgrtable[tbyte];
+							dest[u + 6] = sw_state.currentrgba[tbyte];
 						if ((tbyte = source[u + 7]) != TRANSPARENT_COLOR)
-							dest[u + 7] = d_8to24bgrtable[tbyte];
+							dest[u + 7] = sw_state.currentrgba[tbyte];
 					}
 					dest += vid.rowbytes;
 					source += pic->width;
@@ -683,7 +683,7 @@ void Draw_TileClear(int x, int y, int w, int h, char *name)
 		{
 			psrc = pic->pixels[0] + pic->width * ((i + y) & 63);
 			for (j = x; j < x2; j++)
-				pdest[j] = d_8to24bgrtable[psrc[j & 63]];
+				pdest[j] = sw_state.currentrgba[psrc[j & 63]];
 		}
 	}
 }
@@ -728,7 +728,7 @@ void Draw_Fill(int x, int y, int w, int h, int c)
 		dest = (int *)vid.buffer + y * vid.rowbytes + x;
 		for (v = 0; v < h; v++, dest += vid.rowbytes)
 			for (u = 0; u < w; u++)
-				dest[u] = d_8to24bgrtable[c];
+				dest[u] = sw_state.currentrgba[c];
 	}
 }
 //=============================================================================
@@ -769,7 +769,7 @@ void Draw_FadeScreen(void)
 			for (x = 0; x < vid.width; x++)
 			{
 				if ((x & 3) != t)
-					pbuf[x] = d_8to24bgrtable[0];
+					pbuf[x] = sw_state.currentrgba[0];
 			}
 		}
 	}

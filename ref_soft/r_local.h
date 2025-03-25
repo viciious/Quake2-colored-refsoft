@@ -892,6 +892,8 @@ typedef struct swstate_s
 
 	byte		gammatable[256];
 	byte		currentpalette[1024];
+	int			currentbgra[256];
+	int			currentrgba[256];
 
 } swstate_t;
 

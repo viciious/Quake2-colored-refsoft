@@ -907,55 +907,50 @@ R_CalcPalette
 void R_CalcPalette(void)
 {
 	static qboolean modified;
-	byte	palette[256][4], *in, *out;
-	int		i, j;
-	float	alpha, one_minus_alpha;
-	vec3_t	premult;
+	byte	*out, *row;
+	int		i, j, k;
+	float	alpha;
+	unsigned one_minus_alpha;
+	byte	premult[3];
 	int		v;
 
 	alpha = r_newrefdef.blend[3];
-	if (alpha <= 0)
-	{
-		if (modified)
-		{	// set back to default
-			modified = false;
-			R_GammaCorrectAndSetPalette((const unsigned char *)d_8to24table);
-			return;
-		}
-		return;
-	}
-
-	modified = true;
 	if (alpha > 1)
 		alpha = 1;
+	if (alpha <= 0)
+		return;
 
-	premult[0] = r_newrefdef.blend[0] * alpha * 255;
+	modified = true;
+
+	premult[0] = r_newrefdef.blend[2] * alpha * 255;
 	premult[1] = r_newrefdef.blend[1] * alpha * 255;
-	premult[2] = r_newrefdef.blend[2] * alpha * 255;
+	premult[2] = r_newrefdef.blend[0] * alpha * 255;
+	one_minus_alpha = (1.0 - alpha) * 0xffff;
 
-	one_minus_alpha = (1.0 - alpha);
-
-	in = (byte *)d_8to24table;
-	out = palette[0];
-	for (i = 0; i < 256; i++, in += 4, out += 4)
+	row = (byte*)vid.buffer;
+	for (i = 0; i < vid.height; i++, row += vid.rowbytes*4)
 	{
-		for (j = 0; j<3; j++)
+		out = row;
+		for (k = 0; k < vid.width; k++)
 		{
-			v = premult[j] + one_minus_alpha * in[j];
-			if (v > 255)
-				v = 255;
-			out[j] = v;
+			for (j = 0; j < 3; j++)
+			{
+				v = premult[j] + ((one_minus_alpha * out[j]) >> 16);
+				if (v > 255)
+					v = 255;
+				out[j] = v;
+			}
+			out += 4;
 		}
-		out[3] = 255;
 	}
 
-	R_GammaCorrectAndSetPalette((const unsigned char *)palette[0]);
+	//R_GammaCorrectAndSetPalette((const unsigned char *)palette[0]);
 	//	SWimp_SetPalette( palette[0] );
 }
 
 /*
 		// 3dfx gamma mock
-
+		`
 		r = pow(r, 1.0 / 1.3);
 		g = pow(g, 1.0 / 1.3);
 		b = pow(b, 1.0 / 1.3);
@@ -1149,6 +1144,7 @@ void R_BeginFrame(float camera_separation)
 		Draw_BuildGammaTable();
 		R_GammaCorrectAndSetPalette((const unsigned char *)d_8to24table);
 
+		r_fullbright->modified = true; // HACK
 		vid_gamma->modified = false;
 	}
 
@@ -1213,9 +1209,18 @@ void R_GammaCorrectAndSetPalette(const unsigned char *palette)
 
 	for (i = 0; i < 256; i++)
 	{
-		sw_state.currentpalette[i * 4 + 0] = sw_state.gammatable[palette[i * 4 + 0]];
-		sw_state.currentpalette[i * 4 + 1] = sw_state.gammatable[palette[i * 4 + 1]];
-		sw_state.currentpalette[i * 4 + 2] = sw_state.gammatable[palette[i * 4 + 2]];
+		int r, g, b;
+
+		r = sw_state.gammatable[palette[i * 4 + 0]];
+		g = sw_state.gammatable[palette[i * 4 + 1]];
+		b = sw_state.gammatable[palette[i * 4 + 2]];
+
+		sw_state.currentpalette[i * 4 + 0] = r;
+		sw_state.currentpalette[i * 4 + 1] = g;
+		sw_state.currentpalette[i * 4 + 2] = b;
+
+		sw_state.currentbgra[i] = (b << 16) | (g << 8) | (r << 0);
+		sw_state.currentrgba[i] = (r << 16) | (g << 8) | (b << 0);
 	}
 
 	SWimp_SetPalette(sw_state.currentpalette);

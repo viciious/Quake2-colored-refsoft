@@ -80,7 +80,7 @@ int		lightrighta[3], lightleftstepa[3], lightrightstepa[3], blockdivshift;
 #define FinishLightDelta() { psource += sourcetstep; lightrighta[0] += lightrightstepa[0];lightlefta[0] += lightleftstepa[0];lightdelta[0] += lightdeltastep[0]; lightrighta[1] += lightrightstepa[1];lightlefta[1] += lightleftstepa[1];lightdelta[1] += lightdeltastep[1]; lightrighta[2] += lightrightstepa[2];lightlefta[2] += lightleftstepa[2];lightdelta[2] += lightdeltastep[2]; prowdest += surfrowbytes;}
 
 // High Colored Light Quality //qb: preserve alphatest
-#define MIP8RGBX(i) {  	pix = psource[i]; if(pix == 255) prowdest[i] = 255; else{pix24 = (unsigned char *)&d_8to24table[pix];   \
+#define MIP8RGBX(i) {  	pix = psource[i]; if(pix == 255) prowdest[i] = 255; else{pix24 = (unsigned char *)&sw_state.currentbgra[pix];   \
 	trans[0] = (pix24[0] * (light[0])) >> 15; trans[1] = (pix24[1] * (light[1])) >> 15; trans[2] = (pix24[2] * (light[2])) >> 15; \
 if (trans[0] > 255) trans[0] = 255; if (trans[1] > 255) trans[1] = 255; if (trans[2] > 255) trans[2] = 255; prowdest[i] = trans[2] | (trans[1] << 8) | (trans[0] << 16); }}
 

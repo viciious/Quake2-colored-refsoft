@@ -97,7 +97,8 @@ int				d_aspancount, d_countextrastep;
 spanpackage_t			*a_spans;
 spanpackage_t			*d_pedgespanpackage;
 static int				ystart;
-byte					*d_pdest, *d_ptex;
+int						*d_pdest;
+byte					*d_ptex;
 short					*d_pz;
 int						d_sfrac, d_tfrac, d_light, d_zi;
 int						d_ptexextrastep, d_sfracextrastep;
@@ -133,6 +134,7 @@ void R_PolysetDrawSpans8_33(spanpackage_t *pspanpackage);
 void R_PolysetDrawSpans8_66(spanpackage_t *pspanpackage);
 //void R_PolysetDrawSpans8_Opaque(spanpackage_t *pspanpackage);
 void R_PolysetDrawSpans8_Opaque_Coloured(spanpackage_t *pspanpackage);
+void R_PolysetDrawSpans8to24_Opaque_Coloured(spanpackage_t* pspanpackage);
 
 void R_PolysetCalcGradients(int skinwidth);
 void R_PolysetSetEdgeTable(void);
@@ -917,13 +919,24 @@ void R_PolysetCalcGradients(int skinwidth)
 //qb: staticized
 static int		lcount;
 static int		lsfrac, ltfrac;
-static byte	*lpdest;
+static int  *lpdest;
 static byte	*lptex;
 static int		llight;
 static int		lzi;
 static short	*lpz;
 static unsigned char *pix24;	// leilei - colored lighting
 static int trans[3];			// leilei - colored lighting
+
+// 25 to 75 really
+#define BLENDPIX33_66(v1,v2,v3) do { \
+	int i; \
+	union { int v; unsigned char b[4]; } p[3]; \
+	p[0].v = v1, p[1].v = v2; \
+	for (i = 0; i < 3; i++) { \
+		p[2].b[i] = ((int)p[0].b[i] + p[1].b[i] + p[1].b[i] + p[1].b[i]) >> 2; \
+	} \
+	v3 = p[2].v; \
+} while(0)
 
 /*
 ================
@@ -961,9 +974,8 @@ void R_PolysetDrawSpans8_33(spanpackage_t *pspanpackage)
 			{
 				if ((lzi >> 16) >= *lpz)
 				{
-					int temp = vid.colormap[*lptex + ( llight & 0xFF00 )];
-
-					*lpdest = vid.alphamap[temp + *lpdest * 256];
+					int temp = d_8to24bgrtable[vid.colormap[*lptex + (llight & 0xFF00)]];
+					BLENDPIX33_66(temp, *lpdest, *lpdest);
 				}
 				lpdest++;
 				lzi += r_zistepx;
@@ -988,6 +1000,7 @@ void R_PolysetDrawSpans8_33(spanpackage_t *pspanpackage)
 
 void R_PolysetDrawSpansConstant8_33(spanpackage_t *pspanpackage)
 {
+	int c = sw_state.currentbgra[r_aliasblendcolor];
 	do
 	{
 		lcount = d_aspancount - pspanpackage->count;
@@ -1013,7 +1026,7 @@ void R_PolysetDrawSpansConstant8_33(spanpackage_t *pspanpackage)
 			{
 				if ((lzi >> 16) >= *lpz)
 				{
-					*lpdest = vid.alphamap[r_aliasblendcolor + *lpdest * 256];
+					BLENDPIX33_66(c, *lpdest, *lpdest);
 				}
 				lpdest++;
 				lzi += r_zistepx;
@@ -1055,8 +1068,8 @@ void R_PolysetDrawSpans8_66(spanpackage_t *pspanpackage)
 			{
 				if ((lzi >> 16) >= *lpz)
 				{
-					int temp = vid.colormap[*lptex + (llight & 0xFF00)];
-					*lpdest = vid.alphamap[temp * 256 + *lpdest];
+					int temp = d_8to24bgrtable[vid.colormap[*lptex + (llight & 0xFF00)]];
+					BLENDPIX33_66(*lpdest, temp, *lpdest);
 					*lpz = lzi >> 16;
 				}
 				lpdest++;
@@ -1083,6 +1096,7 @@ void R_PolysetDrawSpans8_66(spanpackage_t *pspanpackage)
 
 void R_PolysetDrawSpansConstant8_66(spanpackage_t *pspanpackage)
 {
+	int c = sw_state.currentbgra[r_aliasblendcolor];
 	do
 	{
 		lcount = d_aspancount - pspanpackage->count;
@@ -1108,7 +1122,7 @@ void R_PolysetDrawSpansConstant8_66(spanpackage_t *pspanpackage)
 			{
 				if ((lzi >> 16) >= *lpz)
 				{
-					*lpdest = vid.alphamap[r_aliasblendcolor * 256 + *lpdest];
+					BLENDPIX33_66(*lpdest, c, *lpdest);
 				}
 				lpdest++;
 				lzi += r_zistepx;
@@ -1124,6 +1138,78 @@ void R_PolysetDrawSpansConstant8_66(spanpackage_t *pspanpackage)
 // leilei - colored lighting
 
 void R_PolysetDrawSpans8_Opaque_Coloured(spanpackage_t *pspanpackage)
+{
+	do
+	{
+		lcount = d_aspancount - pspanpackage->count;
+
+		errorterm += erroradjustup;
+		if (errorterm >= 0)
+		{
+			d_aspancount += d_countextrastep;
+			errorterm -= erroradjustdown;
+		}
+		else
+		{
+			d_aspancount += ubasestep;
+		}
+
+		if (lcount)
+		{
+			lpdest = pspanpackage->pdest;
+			lptex = pspanpackage->ptex;
+			lpz = pspanpackage->pz;
+			lsfrac = pspanpackage->sfrac;
+			ltfrac = pspanpackage->tfrac;
+			llight = pspanpackage->light;
+			lzi = pspanpackage->zi;
+			do
+			{
+				if ((lzi >> 16) >= *lpz)
+				{
+					//PGM
+					if (r_newrefdef.rdflags & RDF_IRGOGGLES && currententity->flags & RF_IR_VISIBLE)
+						*lpdest = ((byte*)vid.colormap)[irtable[*lptex]];
+					// leilei - colored lights begin
+					else if (coloredlights)
+					{
+						int lptemp = *lptex;
+						pix24 = (unsigned char *)&sw_state.currentbgra[lptemp];
+						//qb: works now...
+						trans[0] = CLAMP((int)(pix24[0] * (pspanpackage->lightr * shadelight[0])) >> 15, 0, 63);
+						trans[1] = CLAMP((int)(pix24[1] * (pspanpackage->lightg * shadelight[1])) >> 15, 0, 63);
+						trans[2] = CLAMP((int)(pix24[2] * (pspanpackage->lightb * shadelight[2])) >> 15, 0, 63);
+
+						*lpdest = palmap2[trans[0]][trans[1]][trans[2]];
+					}	// leilei - colored lights end
+					else *lpdest = ((byte*)vid.colormap)[*lptex + (llight & 0xFF00)];
+
+					//PGM
+					*lpz = lzi >> 16;
+				}
+				lpdest++;
+				lzi += r_zistepx;
+				lpz++;
+				llight += r_lstepx;
+				lptex += a_ststepxwhole;
+				lsfrac += a_sstepxfrac;
+				lptex += lsfrac >> 16;
+				lsfrac &= 0xFFFF;
+				ltfrac += a_tstepxfrac;
+				if (ltfrac & 0x10000)
+				{
+					lptex += r_affinetridesc.skinwidth;
+					ltfrac &= 0xFFFF;
+				}
+			} while (--lcount);
+		}
+
+		pspanpackage++;
+	} while (pspanpackage->count != -999999);
+}
+
+
+void R_PolysetDrawSpans8to24_Opaque_Coloured(spanpackage_t* pspanpackage)
 {
 
 	do
@@ -1156,20 +1242,20 @@ void R_PolysetDrawSpans8_Opaque_Coloured(spanpackage_t *pspanpackage)
 				{
 					//PGM
 					if (r_newrefdef.rdflags & RDF_IRGOGGLES && currententity->flags & RF_IR_VISIBLE)
-						*lpdest = ((byte *)vid.colormap)[irtable[*lptex]];
+						*lpdest = sw_state.currentbgra[((byte*)vid.colormap)[irtable[*lptex]]];
 					// leilei - colored lights begin
 					else if (coloredlights)
 					{
-						int lptemp = *lptex;
-						pix24 = (unsigned char *)&d_8to24table[lptemp];
+						pix24 = (unsigned char *)&sw_state.currentbgra[*lptex];
 						//qb: works now...
-						trans[0] = CLAMP((int)(pix24[0] * (pspanpackage->lightr * shadelight[0])) >> 15, 0, 63);
-						trans[1] = CLAMP((int)(pix24[1] * (pspanpackage->lightg * shadelight[1])) >> 15, 0, 63);
-						trans[2] = CLAMP((int)(pix24[2] * (pspanpackage->lightb * shadelight[2])) >> 15, 0, 63);
+						trans[0] = CLAMP((int)(pix24[0] * (pspanpackage->lightr * shadelight[0])) >> 13, 0, 255);
+						trans[1] = CLAMP((int)(pix24[1] * (pspanpackage->lightg * shadelight[1])) >> 13, 0, 255);
+						trans[2] = CLAMP((int)(pix24[2] * (pspanpackage->lightb * shadelight[2])) >> 13, 0, 255);
 
-						*lpdest = palmap2[trans[0]][trans[1]][trans[2]];
+						*lpdest = (trans[0] << 16) | (trans[1] << 8) | (trans[2] << 0);
 					}	// leilei - colored lights end
-					else *lpdest = ((byte *)vid.colormap)[*lptex + (llight & 0xFF00)];
+					else
+						*lpdest = sw_state.currentbgra[((byte*)vid.colormap)[*lptex + (llight & 0xFF00)]];
 
 					//PGM
 					*lpz = lzi >> 16;
@@ -1194,6 +1280,7 @@ void R_PolysetDrawSpans8_Opaque_Coloured(spanpackage_t *pspanpackage)
 		pspanpackage++;
 	} while (pspanpackage->count != -999999);
 }
+
 #endif
 
 /*
@@ -1262,7 +1349,7 @@ void R_RasterizeAliasPolySmooth(void)
 	d_lightg = plefttop[7];
 	d_lightb = plefttop[8];
 #endif
-	d_pdest = (byte *)d_viewbuffer +
+	d_pdest = (int *)d_viewbuffer +
 		ystart * r_screenwidth + plefttop[0];
 	d_pz = d_pzbuffer + ystart * d_zwidth + plefttop[0];
 
@@ -1424,7 +1511,7 @@ void R_RasterizeAliasPolySmooth(void)
 		d_lightg = plefttop[7];
 		d_lightb = plefttop[8];
 #endif
-		d_pdest = (byte *)d_viewbuffer + ystart * r_screenwidth + plefttop[0];
+		d_pdest = (int*)d_viewbuffer + ystart * r_screenwidth + plefttop[0];
 		d_pz = d_pzbuffer + ystart * d_zwidth + plefttop[0];
 
 		if (height == 1)
