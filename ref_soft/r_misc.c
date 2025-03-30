@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_misc.c
 
 #include "r_local.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 #define NUM_MIPS	4
 
@@ -626,10 +628,12 @@ R_ScreenShot_f
 */  
 void R_ScreenShot_f (void) 
 { 
-	int			i; 
+	int			i, j; 
 	char		pcxname[80]; 
 	char		checkname[MAX_OSPATH];
 	FILE		*f;
+	pixel_t		*buffer, *sshot;
+	int			pitch;
 
 	// create the scrnshots directory if it doesn't exist
 	Com_sprintf (checkname, sizeof(checkname), "%s/scrnshot", ri.FS_Gamedir());
@@ -638,7 +642,7 @@ void R_ScreenShot_f (void)
 // 
 // find a file name to save it to 
 // 
-	strcpy(pcxname,"quake00.pcx");
+	strcpy(pcxname,"quake00.png");
 		
 	for (i=0 ; i<=99 ; i++) 
 	{ 
@@ -652,17 +656,34 @@ void R_ScreenShot_f (void)
 	} 
 	if (i==100) 
 	{
-		ri.Con_Printf (PRINT_ALL, "R_ScreenShot_f: Couldn't create a PCX"); 
+		ri.Con_Printf (PRINT_ALL, "R_ScreenShot_f: Couldn't create a PNG"); 
 		return;
 	}
 
 // 
 // save the pcx file 
 // 
+	buffer = vid.buffer;
+	pitch = vid.rowbytes * 4;
+	sshot = malloc(vid.width * vid.height * 3);
 
-	WritePCXfile (checkname, vid.buffer, vid.width, vid.height, vid.rowbytes,
-				  thepalette);
+	for (i = 0; i < vid.height; i++)
+	{
+		pixel_t* rout = sshot + i * vid.width * 3;
+		pixel_t* rin = buffer + i * pitch;
+		for (j = 0; j < vid.width; j++) {
+			rout[0] = rin[2];
+			rout[1] = rin[1];
+			rout[2] = rin[0];
+			rin += 4;
+			rout += 3;
+		}
+	}
+
+	stbi_write_png(checkname, vid.width, vid.height, 3, sshot, vid.width * 3);
 
 	ri.Con_Printf (PRINT_ALL, "Wrote %s\n", checkname);
+
+	free(sshot);
 } 
 
