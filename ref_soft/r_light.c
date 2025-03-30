@@ -748,9 +748,9 @@ void R_BuildLightMapRGB(void)
 	if (r_fullbright->value || !r_worldmodel->lightdata)
 	{
 		for (i = 0; i < size; i++){
-			blocklights[i] = 0;
-			blocklights[i + 1] = 0;
-			blocklights[i + 2] = 0;
+			blocklights[i] = 65536;
+			blocklights[i + 1] = 65536;
+			blocklights[i + 2] = 65536;
 		}
 		return;
 	}
